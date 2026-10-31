@@ -83,6 +83,8 @@ with app.app_context():
 # Web Page Route
 # -------------------------------------------------------------
 @app.route('/')
+@app.route('/api')
+@app.route('/api/index')
 def index():
     return render_template('index.html')
 
