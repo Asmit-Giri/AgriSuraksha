@@ -25,3 +25,4 @@ EXPOSE 5000
 
 # Run with production Gunicorn server
 CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--threads", "4", "wsgi:app"]
+

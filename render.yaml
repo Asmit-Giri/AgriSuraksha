@@ -13,3 +13,4 @@ services:
         value: 127.0.0.1
       - key: MYSQL_PORT
         value: 3306
+

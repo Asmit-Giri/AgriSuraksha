@@ -18,7 +18,12 @@ class CustomJSONProvider(DefaultJSONProvider):
             return obj.isoformat()
         return super().default(obj)
 
-app = Flask(__name__)
+base_dir = os.path.dirname(os.path.abspath(__file__))
+app = Flask(
+    __name__,
+    template_folder=os.path.join(base_dir, 'templates'),
+    static_folder=os.path.join(base_dir, 'static')
+)
 app.config.from_object(Config)
 app.json = CustomJSONProvider(app)
 
@@ -77,6 +82,25 @@ def live_stream():
     Server-Sent Events (SSE) stream for real-time notifications to all connected clients.
     Whenever any client or administrator enters or alters data, an instant event is streamed.
     """
+    if os.environ.get('VERCEL'):
+        def vercel_generator():
+            init_payload = {
+                "version": db_version,
+                "event": "CONNECTED",
+                "details": {"message": "Vercel Serverless Sync Active"},
+                "timestamp": datetime.now().isoformat()
+            }
+            yield f"data: {json.dumps(init_payload)}\n\n"
+        return Response(
+            vercel_generator(),
+            mimetype='text/event-stream',
+            headers={
+                'Cache-Control': 'no-cache',
+                'X-Accel-Buffering': 'no',
+                'Connection': 'keep-alive',
+                'Access-Control-Allow-Origin': '*'
+            }
+        )
     def event_generator():
         q = Queue(maxsize=100)
         with sse_lock:
