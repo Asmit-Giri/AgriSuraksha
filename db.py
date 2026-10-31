@@ -14,9 +14,20 @@ def is_sqlite_mode():
     Check if we should run in serverless SQLite mode.
     Enabled automatically on Vercel/serverless environments unless an external cloud MySQL is configured.
     """
-    is_vercel = bool(os.environ.get('VERCEL') or os.environ.get('AWS_LAMBDA_FUNCTION_NAME'))
+    if _is_sqlite_active:
+        return True
+
+    is_serverless = bool(
+        os.environ.get('VERCEL') or
+        os.environ.get('VERCEL_ENV') or
+        os.environ.get('VERCEL_URL') or
+        os.environ.get('AWS_LAMBDA_FUNCTION_NAME') or
+        os.environ.get('LAMBDA_TASK_ROOT') or
+        os.environ.get('AWS_EXECUTION_ENV') or
+        os.environ.get('SERVERLESS')
+    )
     is_localhost = Config.MYSQL_HOST in ('127.0.0.1', 'localhost', '')
-    return is_vercel and is_localhost
+    return is_serverless and is_localhost
 
 def get_sqlite_path():
     return os.path.join(tempfile.gettempdir(), 'farmer_alert_serverless.db')
@@ -63,13 +74,31 @@ class SQLiteConnAdapter:
     def commit(self):
         self._conn.commit()
 
+def ensure_sqlite_ready(conn):
+    """
+    Guarantees that SQLite tables and seed data exist on ANY connection.
+    """
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='farmers'")
+        table_exists = cur.fetchone()
+        if not table_exists:
+            print("[Database] SQLite tables not detected. Creating and seeding tables...")
+            init_sqlite_tables(conn)
+            seed_sqlite_data(conn)
+            print("[Database] SQLite serverless database ready.")
+    finally:
+        cur.close()
+
 def get_sqlite_connection():
     global _is_sqlite_active
     _is_sqlite_active = True
     db_path = get_sqlite_path()
     conn = sqlite3.connect(db_path, autocommit=True)
     conn.row_factory = sqlite3.Row
-    return SQLiteConnAdapter(conn)
+    adapter = SQLiteConnAdapter(conn)
+    ensure_sqlite_ready(adapter)
+    return adapter
 
 def init_sqlite_tables(conn):
     cur = conn.cursor()
@@ -80,10 +109,10 @@ def init_sqlite_tables(conn):
             full_name TEXT NOT NULL,
             phone TEXT NOT NULL,
             alternate_phone TEXT,
-            state TEXT NOT NULL DEFAULT 'Uttar Pradesh',
-            district TEXT NOT NULL,
-            sub_district TEXT NOT NULL,
-            village TEXT NOT NULL,
+            state TEXT DEFAULT 'Uttar Pradesh',
+            district TEXT DEFAULT 'Varanasi',
+            sub_district TEXT DEFAULT 'Central',
+            village TEXT DEFAULT 'Main Village',
             latitude REAL NOT NULL,
             longitude REAL NOT NULL,
             farm_size_acres REAL DEFAULT 2.50,
@@ -220,12 +249,19 @@ def get_db_connection(use_database=True):
 
 def execute_sql_file(file_path):
     """
-    Executes an SQL file containing multiple statements.
+    Executes an SQL file containing multiple statements (MySQL only).
+    Safely bypassed in SQLite / serverless mode.
     """
     if not os.path.exists(file_path):
         return
 
+    if is_sqlite_mode() or _is_sqlite_active:
+        return
+
     conn = get_db_connection(use_database=False)
+    if isinstance(conn, SQLiteConnAdapter):
+        return
+
     cursor = conn.cursor()
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
@@ -324,40 +360,52 @@ def init_db():
     Initializes database schema and seed data if not already present.
     Supports both MySQL (local/cloud) and SQLite (Vercel serverless fallback).
     """
+    global _is_sqlite_active
+
     if is_sqlite_mode() or _is_sqlite_active:
         conn = get_sqlite_connection()
-        init_sqlite_tables(conn)
+        conn.close()
+        return
+
+    # Probe MySQL with a fast 2-second timeout
+    try:
+        probe = pymysql.connect(
+            host=Config.MYSQL_HOST,
+            port=Config.MYSQL_PORT,
+            user=Config.MYSQL_USER,
+            password=Config.MYSQL_PASSWORD,
+            charset='utf8mb4',
+            connect_timeout=2
+        )
+        probe.close()
+
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        schema_path = os.path.join(base_dir, 'schema.sql')
+        seed_path = os.path.join(base_dir, 'seed_data.sql')
+
+        print("[Database] Initializing MySQL database...")
+        execute_sql_file(schema_path)
+
+        conn = get_db_connection(use_database=True)
+        if isinstance(conn, SQLiteConnAdapter):
+            conn.close()
+            return
+
         cursor = conn.cursor()
         try:
             cursor.execute("SELECT COUNT(*) AS total FROM farmers")
             result = cursor.fetchone()
-            if not result or result['total'] == 0:
-                print("[Database] Seeding initial data into SQLite...")
-                seed_sqlite_data(conn)
-            print("[Database] SQLite serverless database ready.")
+            if result and result['total'] == 0:
+                print("[Database] Seeding initial mock data into MySQL...")
+                execute_sql_file(seed_path)
+            print("[Database] MySQL database initialized and ready.")
         finally:
             cursor.close()
             conn.close()
-        return
-
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    schema_path = os.path.join(base_dir, 'schema.sql')
-    seed_path = os.path.join(base_dir, 'seed_data.sql')
-
-    print("[Database] Checking MySQL database initialization...")
-    execute_sql_file(schema_path)
-
-    conn = get_db_connection(use_database=True)
-    cursor = conn.cursor()
-    try:
-        cursor.execute("SELECT COUNT(*) AS total FROM farmers")
-        result = cursor.fetchone()
-        if result['total'] == 0:
-            print("[Database] Seeding initial mock data into MySQL...")
-            execute_sql_file(seed_path)
-        print("[Database] MySQL database initialized and ready.")
-    finally:
-        cursor.close()
+    except Exception as e:
+        print(f"[Database] MySQL unreachable ({e}). Activating serverless SQLite engine...")
+        _is_sqlite_active = True
+        conn = get_sqlite_connection()
         conn.close()
 
 def haversine_distance(lat1, lon1, lat2, lon2):
@@ -430,10 +478,10 @@ def create_farmer(data):
             data.get('full_name'),
             data.get('phone'),
             data.get('alternate_phone') or None,
-            data.get('state', 'Uttar Pradesh'),
-            data.get('district'),
-            data.get('sub_district'),
-            data.get('village'),
+            data.get('state') or 'Uttar Pradesh',
+            data.get('district') or 'Varanasi',
+            data.get('sub_district') or data.get('village') or 'Central',
+            data.get('village') or 'Main Village',
             float(data.get('latitude', 25.4215)),
             float(data.get('longitude', 82.8423)),
             float(data.get('farm_size_acres', 2.5)),
@@ -466,10 +514,10 @@ def update_farmer(farmer_id, data):
             data.get('full_name'),
             data.get('phone'),
             data.get('alternate_phone') or None,
-            data.get('state', 'Uttar Pradesh'),
-            data.get('district'),
-            data.get('sub_district'),
-            data.get('village'),
+            data.get('state') or 'Uttar Pradesh',
+            data.get('district') or 'Varanasi',
+            data.get('sub_district') or data.get('village') or 'Central',
+            data.get('village') or 'Main Village',
             float(data.get('latitude')),
             float(data.get('longitude')),
             float(data.get('farm_size_acres', 2.5)),

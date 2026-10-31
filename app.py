@@ -19,10 +19,23 @@ class CustomJSONProvider(DefaultJSONProvider):
         return super().default(obj)
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
+
+def resolve_folder(folder_name):
+    candidates = [
+        os.path.join(base_dir, folder_name),
+        os.path.join(os.getcwd(), folder_name),
+        os.path.join(base_dir, 'api', folder_name),
+        os.path.join('/var/task', folder_name)
+    ]
+    for c in candidates:
+        if os.path.isdir(c):
+            return c
+    return os.path.join(base_dir, folder_name)
+
 app = Flask(
     __name__,
-    template_folder=os.path.join(base_dir, 'templates'),
-    static_folder=os.path.join(base_dir, 'static')
+    template_folder=resolve_folder('templates'),
+    static_folder=resolve_folder('static')
 )
 app.config.from_object(Config)
 app.json = CustomJSONProvider(app)

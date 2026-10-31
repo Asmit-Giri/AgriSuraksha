@@ -1,0 +1,181 @@
+/* Modern Theme & Custom Styles for Farmer Alert Registry */
+:root {
+  --primary: #15803d;
+  --primary-dark: #166534;
+  --primary-light: #86efac;
+  --lightning: #eab308;
+  --lightning-dark: #ca8a04;
+  --flood: #0284c7;
+  --flood-dark: #0369a1;
+  --danger: #dc2626;
+  --warning: #f97316;
+  --surface: #ffffff;
+  --background: #f8fafc;
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --border: #e2e8f0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background-color: var(--background);
+  color: var(--text-main);
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+}
+
+/* Animations */
+@keyframes pulse-red {
+  0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); }
+  70% { box-shadow: 0 0 0 14px rgba(220, 38, 38, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+}
+
+@keyframes pulse-yellow {
+  0% { box-shadow: 0 0 0 0 rgba(234, 179, 8, 0.8); }
+  70% { box-shadow: 0 0 0 12px rgba(234, 179, 8, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(234, 179, 8, 0); }
+}
+
+@keyframes flash-threat {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; transform: scale(1.02); }
+}
+
+.pulsing-sos {
+  animation: pulse-red 1.5s infinite;
+}
+
+.pulsing-lightning {
+  animation: pulse-yellow 1.2s infinite;
+}
+
+.flash-active-alert {
+  animation: flash-threat 2s infinite ease-in-out;
+}
+
+/* Map Elements */
+#map {
+  width: 100%;
+  height: 520px;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  z-index: 10;
+}
+
+/* Custom Leaflet Marker Icons */
+.custom-farmer-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid white;
+  color: white;
+  font-weight: bold;
+  font-size: 14px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+}
+
+.icon-safe { background-color: #16a34a; }
+.icon-infield { background-color: #d97706; }
+.icon-atrisk { background-color: #ea580c; animation: pulse-yellow 2s infinite; }
+.icon-sos { background-color: #dc2626; animation: pulse-red 1s infinite; }
+
+.custom-hazard-icon {
+  font-size: 26px;
+  text-align: center;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));
+}
+
+/* Phone Mockup for SMS / WhatsApp Preview */
+.phone-mockup {
+  width: 310px;
+  height: 580px;
+  background-color: #1e293b;
+  border-radius: 36px;
+  border: 8px solid #0f172a;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+  padding: 14px 10px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  margin: 0 auto;
+}
+
+.phone-notch {
+  width: 120px;
+  height: 18px;
+  background-color: #0f172a;
+  border-radius: 0 0 10px 10px;
+  margin: 0 auto 10px auto;
+}
+
+.phone-screen {
+  flex: 1;
+  background-color: #f1f5f9;
+  border-radius: 20px;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.whatsapp-bubble {
+  background-color: #dcf8c6;
+  border-radius: 12px 12px 2px 12px;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #111827;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+  border-left: 4px solid #10b981;
+}
+
+.sms-bubble {
+  background-color: #ffffff;
+  border-radius: 12px 12px 12px 2px;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #111827;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+  border-left: 4px solid #3b82f6;
+}
+
+/* Modal styles */
+.modal-backdrop {
+  background-color: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(4px);
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Toasts */
+#toast-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+

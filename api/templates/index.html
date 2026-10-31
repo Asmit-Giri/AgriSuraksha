@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AgriSuraksha | Lightning & Flood Alert Registry for Farmers</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased min-h-screen flex flex-col">
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container"></div>
+
+  <!-- Top Header Navigation -->
+  <header class="bg-emerald-900 text-white shadow-md sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-amber-400 flex items-center justify-center text-2xl shadow-inner font-bold">
+          ⚡
+        </div>
+        <div>
+          <div class="flex items-center gap-2 flex-wrap">
+            <h1 class="text-xl font-bold tracking-tight">AgriSuraksha</h1>
+            <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-400 text-emerald-950 uppercase">Kisan Rakshak</span>
+            <span id="live-sync-indicator" class="px-2.5 py-0.5 rounded text-[10px] font-mono bg-emerald-800 text-emerald-200 border border-emerald-600 flex items-center gap-1.5 shadow-sm transition-all" title="Real-time multi-user synchronization active across all devices">
+              <span id="live-sync-dot" class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-300"></span>
+              <span id="live-sync-text">LIVE SYNC ACTIVE</span>
+            </span>
+            <span id="live-sync-time" class="text-[10px] text-emerald-300 hidden sm:inline font-mono">Synced</span>
+          </div>
+          <p class="text-xs text-emerald-200">Lightning & Flood Early Warning Registry for Farmers</p>
+        </div>
+      </div>
+
+      <!-- Quick Action Buttons -->
+      <div class="flex flex-wrap items-center gap-2">
+        <button id="btn-audio-toggle" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-emerald-800 text-emerald-200 border border-emerald-700 hover:bg-emerald-700 transition">
+          🔕 Siren Sound: OFF
+        </button>
+
+        <div class="h-6 w-px bg-emerald-700 mx-1"></div>
+
+        <!-- Simulation Triggers -->
+        <button onclick="triggerThreatSimulation('Lightning', 'Varanasi')" class="px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 shadow-sm flex items-center gap-1">
+          <span>⚡</span> Sim Lightning (UP)
+        </button>
+        <button onclick="triggerThreatSimulation('Flash_Flood', 'Paschim Medinipur')" class="px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white shadow-sm flex items-center gap-1">
+          <span>🌊</span> Sim Ghatal Flood (WB)
+        </button>
+        <button onclick="triggerThreatSimulation('Lightning', 'Bankura')" class="px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-yellow-400 hover:bg-yellow-500 text-slate-900 shadow-sm flex items-center gap-1">
+          <span>⚡</span> Sim Bankura Strike (WB)
+        </button>
+
+        <div class="h-6 w-px bg-emerald-700 mx-1"></div>
+
+        <button onclick="openModal('modal-farmer-register')" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-white text-emerald-900 hover:bg-emerald-50 shadow-sm flex items-center gap-1">
+          <span>+</span> Register Farmer
+        </button>
+        <button onclick="openModal('modal-create-alert')" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-red-600 hover:bg-red-700 text-white shadow-sm flex items-center gap-1">
+          <span>📢</span> Broadcast Alert
+        </button>
+        <button onclick="openModal('modal-submit-sos')" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-red-900 hover:bg-red-950 text-white border border-red-500 flex items-center gap-1">
+          <span>🆘</span> SOS Distress
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Real-time Active Emergency Alert Ticker -->
+  <div id="active-alert-ticker" class="bg-gradient-to-r from-red-600 to-amber-600 text-white px-4 py-2 text-sm shadow-inner hidden">
+    <div class="max-w-7xl mx-auto flex items-center justify-between gap-4">
+      <div class="flex items-center gap-2 overflow-hidden">
+        <span class="flex h-3 w-3 relative">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-3 w-3 bg-white"></span>
+        </span>
+        <strong id="ticker-title" class="uppercase tracking-wider font-extrabold text-xs">CRITICAL WARNING:</strong>
+        <span id="ticker-text" class="text-xs truncate text-amber-50"></span>
+      </div>
+      <button onclick="switchTab('alerts')" class="text-xs underline font-bold whitespace-nowrap hover:text-amber-200">
+        View Hazard Details →
+      </button>
+    </div>
+  </div>
+
+  <!-- Main Container -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 py-6 flex-1 w-full">
+
+    <!-- KPI Metric Cards Row -->
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5 mb-6">
+      <div class="bg-white rounded-xl p-3.5 border border-slate-200 shadow-sm flex items-center gap-3">
+        <div class="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center text-xl font-bold">
+          🧑‍🌾
+        </div>
+        <div>
+          <div class="text-[11px] text-slate-500 font-medium">Registered Farmers</div>
+          <div id="stat-total-farmers" class="text-xl font-extrabold text-slate-900">--</div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl p-3.5 border border-slate-200 shadow-sm flex items-center gap-3">
+        <div class="w-10 h-10 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center text-xl font-bold">
+          ⚠️
+        </div>
+        <div>
+          <div class="text-[11px] text-slate-500 font-medium">Farmers In Field / Risk</div>
+          <div id="stat-at-risk" class="text-xl font-extrabold text-amber-600">--</div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl p-3.5 border border-slate-200 shadow-sm flex items-center gap-3">
+        <div class="w-10 h-10 rounded-lg bg-red-50 text-red-700 flex items-center justify-center text-xl font-bold">
+          📢
+        </div>
+        <div>
+          <div class="text-[11px] text-slate-500 font-medium">Active Weather Alerts</div>
+          <div id="stat-active-alerts" class="text-xl font-extrabold text-red-600">--</div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl p-3.5 border border-slate-200 shadow-sm flex items-center gap-3">
+        <div class="w-10 h-10 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center text-xl font-bold">
+          💬
+        </div>
+        <div>
+          <div class="text-[11px] text-slate-500 font-medium">SMS / WA Dispatches</div>
+          <div id="stat-dispatches" class="text-xl font-extrabold text-blue-600">--</div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl p-3.5 border border-slate-200 shadow-sm flex items-center gap-3">
+        <div class="w-10 h-10 rounded-lg bg-rose-50 text-rose-700 flex items-center justify-center text-xl font-bold">
+          🆘
+        </div>
+        <div>
+          <div class="text-[11px] text-slate-500 font-medium">Pending SOS Calls</div>
+          <div id="stat-pending-sos" class="text-xl font-extrabold text-rose-600">--</div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl p-3.5 border border-slate-200 shadow-sm flex items-center gap-3">
+        <div class="w-10 h-10 rounded-lg bg-cyan-50 text-cyan-700 flex items-center justify-center text-xl font-bold">
+          🏛️
+        </div>
+        <div>
+          <div class="text-[11px] text-slate-500 font-medium">Safe Shelter Capacity</div>
+          <div id="stat-shelter-cap" class="text-sm font-extrabold text-cyan-800">--</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs Header -->
+    <div class="border-b border-slate-200 mb-6 bg-white rounded-t-xl px-2 pt-2 shadow-sm flex flex-wrap gap-1">
+      <button class="tab-btn px-4 py-2.5 text-sm font-bold text-emerald-800 border-b-2 border-emerald-600" data-tab="map">
+        🗺️ Threat Geo-Map
+      </button>
+      <button class="tab-btn px-4 py-2.5 text-sm font-medium text-slate-500 hover:text-slate-700 border-b-2 border-transparent" data-tab="farmers">
+        🧑‍🌾 Farmer Registry
+      </button>
+      <button class="tab-btn px-4 py-2.5 text-sm font-medium text-slate-500 hover:text-slate-700 border-b-2 border-transparent" data-tab="alerts">
+        📢 Emergency Alerts & Broadcast
+      </button>
+      <button class="tab-btn px-4 py-2.5 text-sm font-medium text-slate-500 hover:text-slate-700 border-b-2 border-transparent" data-tab="sensors">
+        📡 Sensor Telemetry
+      </button>
+      <button class="tab-btn px-4 py-2.5 text-sm font-medium text-slate-500 hover:text-slate-700 border-b-2 border-transparent" data-tab="shelters">
+        🏛️ Safe Shelters
+      </button>
+      <button class="tab-btn px-4 py-2.5 text-sm font-medium text-slate-500 hover:text-slate-700 border-b-2 border-transparent" data-tab="sos">
+        🆘 SOS Distress Hub
+      </button>
+      <button class="tab-btn px-4 py-2.5 text-sm font-medium text-slate-500 hover:text-slate-700 border-b-2 border-transparent" data-tab="dispatches">
+        📱 Dispatch Simulator & Audit
+      </button>
+    </div>
+
+    <!-- ======================================================== -->
+    <!-- TAB 1: GEOSPATIAL THREAT MAP -->
+    <!-- ======================================================== -->
+    <div id="tab-content-map" class="tab-content space-y-4">
+      <!-- Map Controls & Layer Filters -->
+      <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
+        <div class="flex items-center gap-4 text-xs font-semibold">
+          <span class="text-slate-500 uppercase tracking-wider">Layers:</span>
+          <label class="flex items-center gap-1.5 cursor-pointer">
+            <input type="checkbox" id="toggle-farmers" checked class="rounded text-emerald-600 focus:ring-emerald-500">
+            <span>🧑‍🌾 Farmers</span>
+          </label>
+          <label class="flex items-center gap-1.5 cursor-pointer">
+            <input type="checkbox" id="toggle-alerts" checked class="rounded text-red-600 focus:ring-red-500">
+            <span>⚡ Hazard Zones</span>
+          </label>
+          <label class="flex items-center gap-1.5 cursor-pointer">
+            <input type="checkbox" id="toggle-sensors" checked class="rounded text-blue-600 focus:ring-blue-500">
+            <span>📡 Telemetry Stations</span>
+          </label>
+          <label class="flex items-center gap-1.5 cursor-pointer">
+            <input type="checkbox" id="toggle-shelters" checked class="rounded text-emerald-600 focus:ring-emerald-500">
+            <span>🏛️ Safe Shelters</span>
+          </label>
+        </div>
+
+        <div class="flex items-center gap-1.5 text-xs flex-wrap">
+          <span class="text-slate-500 font-bold">Quick Zoom:</span>
+          <button onclick="map.setView([24.5, 88.0], 8)" class="px-2 py-1 bg-emerald-100 text-emerald-900 hover:bg-emerald-200 rounded font-bold">🌾 West Bengal (Overview)</button>
+          <button onclick="map.setView([25.01, 88.14], 10)" class="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded font-medium">Malda</button>
+          <button onclick="map.setView([24.18, 88.27], 10)" class="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded font-medium">Murshidabad</button>
+          <button onclick="map.setView([22.67, 87.72], 10)" class="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded font-medium">Ghatal / Medinipur</button>
+          <button onclick="map.setView([22.16, 88.80], 10)" class="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded font-medium">Sundarbans</button>
+          <button onclick="map.setView([23.23, 87.07], 10)" class="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded font-medium">Bankura</button>
+          <div class="h-4 w-px bg-slate-200 mx-1"></div>
+          <button onclick="map.setView([25.42, 82.85], 11)" class="px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded font-medium">Varanasi</button>
+          <button onclick="map.setView([26.75, 83.35], 11)" class="px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded font-medium">Gorakhpur</button>
+          <button onclick="map.setView([25.64, 85.05], 11)" class="px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded font-medium">Patna</button>
+        </div>
+      </div>
+
+      <!-- Leaflet Map Container -->
+      <div id="map"></div>
+
+      <!-- Map Legend & Guidance -->
+      <div class="bg-white p-3.5 rounded-xl border border-slate-200 text-xs flex flex-wrap items-center justify-between gap-3 text-slate-600">
+        <div class="flex items-center gap-4">
+          <span class="font-bold text-slate-800">Map Legend:</span>
+          <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-emerald-600 inline-block"></span> Safe Farmer</span>
+          <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-amber-600 inline-block"></span> Farmer In Field</span>
+          <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-orange-600 inline-block"></span> At Risk</span>
+          <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-red-600 inline-block"></span> SOS Distress</span>
+          <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-yellow-400 inline-block"></span> Lightning Epicenter</span>
+          <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-cyan-600 inline-block"></span> Flood Zone</span>
+        </div>
+        <div class="italic text-slate-500">
+          💡 Click any farmer or hazard circle on the map to view instant telemetry and evacuation options.
+        </div>
+      </div>
+    </div>
+
+    <!-- ======================================================== -->
+    <!-- TAB 2: FARMER REGISTRY DIRECTORY -->
+    <!-- ======================================================== -->
+    <div id="tab-content-farmers" class="tab-content hidden space-y-4">
+      <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
+        <div class="flex flex-wrap items-center gap-3">
+          <input type="text" id="search-farmer" placeholder="🔍 Search name, phone, village..." class="border border-slate-300 rounded-lg px-3 py-1.5 text-xs w-60 focus:ring-2 focus:ring-emerald-500 outline-none">
+
+          <select id="filter-district" class="border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-700 outline-none">
+            <option value="">All Districts</option>
+            <optgroup label="West Bengal">
+              <option value="Malda">Malda</option>
+              <option value="Murshidabad">Murshidabad</option>
+              <option value="Purba Bardhaman">Purba Bardhaman</option>
+              <option value="South 24 Parganas">South 24 Parganas</option>
+              <option value="North 24 Parganas">North 24 Parganas</option>
+              <option value="Nadia">Nadia</option>
+              <option value="Bankura">Bankura</option>
+              <option value="Paschim Medinipur">Paschim Medinipur</option>
+              <option value="Hooghly">Hooghly</option>
+              <option value="Jalpaiguri">Jalpaiguri</option>
+              <option value="Cooch Behar">Cooch Behar</option>
+            </optgroup>
+            <optgroup label="Uttar Pradesh & Bihar">
+              <option value="Varanasi">Varanasi</option>
+              <option value="Gorakhpur">Gorakhpur</option>
+              <option value="Prayagraj">Prayagraj</option>
+              <option value="Ayodhya">Ayodhya</option>
+              <option value="Patna">Patna</option>
+              <option value="Guntur">Guntur (AP)</option>
+            </optgroup>
+          </select>
+
+          <select id="filter-status" class="border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-700 outline-none">
+            <option value="">All Statuses</option>
+            <option value="Safe">Safe</option>
+            <option value="In Field">In Field</option>
+            <option value="At Risk">At Risk</option>
+            <option value="SOS_Distress">SOS Distress</option>
+          </select>
+        </div>
+
+        <button onclick="openModal('modal-farmer-register')" class="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold shadow-sm flex items-center gap-1">
+          <span>+</span> Register Farmer in MySQL
+        </button>
+      </div>
+
+      <!-- Table Container -->
+      <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-slate-50 border-b border-slate-200 text-slate-600 text-xs font-bold uppercase tracking-wider">
+              <th class="py-3 px-4">Farmer Details</th>
+              <th class="py-3 px-4">Phone & Lang</th>
+              <th class="py-3 px-4">Location</th>
+              <th class="py-3 px-4">GPS Coordinates</th>
+              <th class="py-3 px-4">Crops & Land</th>
+              <th class="py-3 px-4">Safety Status</th>
+              <th class="py-3 px-4 text-right">Quick Actions</th>
+            </tr>
+          </thead>
+          <tbody id="farmers-table-body">
+            <!-- Rendered dynamically -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ======================================================== -->
+    <!-- TAB 3: EMERGENCY ALERTS & BROADCASTING -->
+    <!-- ======================================================== -->
+    <div id="tab-content-alerts" class="tab-content hidden space-y-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <h3 class="text-base font-bold text-slate-900">Active Weather Warnings & Hazard Radius Broadcast</h3>
+          <p class="text-xs text-slate-500">Live alerts automatically broadcast advisory messages to all farmers within the danger perimeter.</p>
+        </div>
+        <button onclick="openModal('modal-create-alert')" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold shadow-sm flex items-center gap-1">
+          <span>📢</span> Issue New Weather Warning
+        </button>
+      </div>
+
+      <div id="alerts-container">
+        <!-- Rendered dynamically -->
+      </div>
+    </div>
+
+    <!-- ======================================================== -->
+    <!-- TAB 4: SENSOR TELEMETRY & STATIONS -->
+    <!-- ======================================================== -->
+    <div id="tab-content-sensors" class="tab-content hidden space-y-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <h3 class="text-base font-bold text-slate-900">Doppler Radar, Lightning Detectors & Stream Gauges</h3>
+          <p class="text-xs text-slate-500">Live telemetry feeds from Central Water Commission (CWC) and Lightning Early Warning Systems.</p>
+        </div>
+      </div>
+
+      <div id="sensors-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- Rendered dynamically -->
+      </div>
+    </div>
+
+    <!-- ======================================================== -->
+    <!-- TAB 5: EMERGENCY SAFE SHELTERS -->
+    <!-- ======================================================== -->
+    <div id="tab-content-shelters" class="tab-content hidden space-y-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <h3 class="text-base font-bold text-slate-900">Designated Cyclone & Flood Relief Havens</h3>
+          <p class="text-xs text-slate-500">All shelters are equipped with certified lightning arrestors, water filtration, and backup generators.</p>
+        </div>
+      </div>
+
+      <div id="shelters-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- Rendered dynamically -->
+      </div>
+    </div>
+
+    <!-- ======================================================== -->
+    <!-- TAB 6: SOS DISTRESS HUB -->
+    <!-- ======================================================== -->
+    <div id="tab-content-sos" class="tab-content hidden space-y-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <h3 class="text-base font-bold text-red-900">Farmer Distress & Emergency Rescue Coordination (NDRF / SDRF)</h3>
+          <p class="text-xs text-slate-500">Real-time rescue tracking for farmers stranded in agricultural fields or cut off by rising water.</p>
+        </div>
+        <button onclick="openModal('modal-submit-sos')" class="px-4 py-2 bg-red-700 hover:bg-red-800 text-white rounded-lg text-xs font-bold shadow-sm">
+          🆘 Report Farmer in Distress
+        </button>
+      </div>
+
+      <div id="sos-container">
+        <!-- Rendered dynamically -->
+      </div>
+    </div>
+
+    <!-- ======================================================== -->
+    <!-- TAB 7: DISPATCH SIMULATOR & AUDIT TRAIL -->
+    <!-- ======================================================== -->
+    <div id="tab-content-dispatches" class="tab-content hidden">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- Simulated Mobile Phone Preview -->
+        <div class="lg:col-span-5 flex flex-col items-center">
+          <div class="mb-3 text-center">
+            <h4 class="font-bold text-slate-900 text-sm">Farmer Mobile Device Simulation</h4>
+            <p class="text-xs text-slate-500">Incoming emergency SMS & WhatsApp notifications</p>
+          </div>
+
+          <div class="phone-mockup">
+            <div class="phone-notch"></div>
+            <div class="phone-screen" id="phone-messages-stream">
+              <!-- Rendered dynamically -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Dispatch Audit Table -->
+        <div class="lg:col-span-7">
+          <div class="mb-3 flex justify-between items-center">
+            <div>
+              <h4 class="font-bold text-slate-900 text-sm">Dispatches Audit Trail</h4>
+              <p class="text-xs text-slate-500">All outbound SMS, WhatsApp and IVR alerts logged in MySQL database</p>
+            </div>
+            <button onclick="fetchDispatches()" class="text-xs bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg text-slate-700 font-semibold">
+              🔄 Refresh Log
+            </button>
+          </div>
+
+          <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="bg-slate-50 border-b border-slate-200 text-slate-600 text-xs font-bold uppercase tracking-wider">
+                  <th class="py-2.5 px-3">Time</th>
+                  <th class="py-2.5 px-3">Channel</th>
+                  <th class="py-2.5 px-3">Recipient</th>
+                  <th class="py-2.5 px-3">Message Snippet</th>
+                  <th class="py-2.5 px-3 text-center">Status</th>
+                </tr>
+              </thead>
+              <tbody id="dispatches-table-body">
+                <!-- Rendered dynamically -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ======================================================== -->
+  <!-- MODALS -->
+  <!-- ======================================================== -->
+
+  <!-- Modal 1: Register Farmer -->
+  <div id="modal-farmer-register" class="fixed inset-0 modal-backdrop z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-200 mb-4">
+        <h3 class="text-lg font-bold text-emerald-950 flex items-center gap-2">
+          <span>🧑‍🌾</span> Register Farmer in Early Warning Registry
+        </h3>
+        <button onclick="closeModal('modal-farmer-register')" class="text-slate-400 hover:text-slate-600 text-2xl font-bold">&times;</button>
+      </div>
+
+      <form id="form-register-farmer" class="space-y-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Full Name *</label>
+            <input type="text" name="full_name" required placeholder="e.g. Ram Sevak Verma" class="w-full border border-slate-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-emerald-500">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Phone Number (Mobile) *</label>
+            <input type="text" name="phone" required placeholder="+91 98765 00000" class="w-full border border-slate-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-emerald-500">
+          </div>
+
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">State *</label>
+            <select name="state" required class="w-full border border-slate-300 rounded-lg p-2 outline-none">
+              <option value="West Bengal" selected>West Bengal</option>
+              <option value="Uttar Pradesh">Uttar Pradesh</option>
+              <option value="Bihar">Bihar</option>
+              <option value="Andhra Pradesh">Andhra Pradesh</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">District *</label>
+            <select name="district" required class="w-full border border-slate-300 rounded-lg p-2 outline-none">
+              <optgroup label="West Bengal">
+                <option value="Murshidabad">Murshidabad</option>
+                <option value="Malda">Malda</option>
+                <option value="Purba Bardhaman">Purba Bardhaman</option>
+                <option value="South 24 Parganas">South 24 Parganas</option>
+                <option value="North 24 Parganas">North 24 Parganas</option>
+                <option value="Nadia">Nadia</option>
+                <option value="Bankura">Bankura</option>
+                <option value="Paschim Medinipur">Paschim Medinipur</option>
+                <option value="Hooghly">Hooghly</option>
+                <option value="Jalpaiguri">Jalpaiguri</option>
+                <option value="Cooch Behar">Cooch Behar</option>
+              </optgroup>
+              <optgroup label="Other States">
+                <option value="Varanasi">Varanasi (UP)</option>
+                <option value="Gorakhpur">Gorakhpur (UP)</option>
+                <option value="Prayagraj">Prayagraj (UP)</option>
+                <option value="Ayodhya">Ayodhya (UP)</option>
+                <option value="Patna">Patna (Bihar)</option>
+                <option value="Guntur">Guntur (AP)</option>
+              </optgroup>
+            </select>
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Sub-District / Tehsil *</label>
+            <input type="text" name="sub_district" required placeholder="e.g. Pindra" class="w-full border border-slate-300 rounded-lg p-2 outline-none">
+          </div>
+
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Village *</label>
+            <input type="text" name="village" required placeholder="e.g. Mangari Khas" class="w-full border border-slate-300 rounded-lg p-2 outline-none">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Crops Grown</label>
+            <input type="text" name="crops_grown" placeholder="e.g. Paddy, Wheat, Vegetables" class="w-full border border-slate-300 rounded-lg p-2 outline-none">
+          </div>
+
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Farm Latitude (GPS) *</label>
+            <input type="number" step="any" name="latitude" value="25.425000" required class="w-full border border-slate-300 rounded-lg p-2 outline-none">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Farm Longitude (GPS) *</label>
+            <input type="number" step="any" name="longitude" value="82.845000" required class="w-full border border-slate-300 rounded-lg p-2 outline-none">
+          </div>
+
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Farm Size (Acres)</label>
+            <input type="number" step="0.1" name="farm_size_acres" value="3.0" class="w-full border border-slate-300 rounded-lg p-2 outline-none">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Preferred Language</label>
+            <select name="preferred_language" class="w-full border border-slate-300 rounded-lg p-2 outline-none">
+              <option value="Hindi">Hindi (हिन्दी)</option>
+              <option value="English">English</option>
+              <option value="Punjabi">Punjabi (ਪੰਜਾਬੀ)</option>
+              <option value="Bengali">Bengali (বাংলা)</option>
+              <option value="Telugu">Telugu (తెలుగు)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="pt-2 border-t border-slate-200">
+          <label class="block font-bold text-slate-700 text-xs mb-2">Notification Channels</label>
+          <div class="flex gap-4 text-xs">
+            <label class="flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" name="alert_sms" checked class="rounded text-emerald-600">
+              <span>SMS Alert</span>
+            </label>
+            <label class="flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" name="alert_whatsapp" checked class="rounded text-emerald-600">
+              <span>WhatsApp Alert</span>
+            </label>
+            <label class="flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" name="alert_ivr" class="rounded text-emerald-600">
+              <span>Voice IVR Call</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="flex justify-end gap-2 pt-3 border-t border-slate-200">
+          <button type="button" onclick="closeModal('modal-farmer-register')" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-semibold text-slate-700">Cancel</button>
+          <button type="submit" class="px-5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold shadow-md">Save & Register</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal 2: Create Weather Alert -->
+  <div id="modal-create-alert" class="fixed inset-0 modal-backdrop z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-200 mb-4">
+        <h3 class="text-lg font-bold text-red-950 flex items-center gap-2">
+          <span>📢</span> Issue Weather Alert & Emergency Broadcast
+        </h3>
+        <button onclick="closeModal('modal-create-alert')" class="text-slate-400 hover:text-slate-600 text-2xl font-bold">&times;</button>
+      </div>
+
+      <form id="form-create-alert" class="space-y-3.5 text-xs">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Hazard Type *</label>
+            <select name="hazard_type" required class="w-full border border-slate-300 rounded-lg p-2 outline-none">
+              <option value="Lightning">⚡ Lightning Strikes</option>
+              <option value="Flash_Flood">🌊 Flash Flood / River Inundation</option>
+              <option value="Thunderstorm_Severe">⛈️ Severe Thunderstorm & Hail</option>
+              <option value="River_Overflow">🌊 River Overflow Surge</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Severity Level *</label>
+            <select name="severity_level" required class="w-full border border-slate-300 rounded-lg p-2 outline-none font-bold text-red-700">
+              <option value="Severe_Emergency">🔴 Severe Emergency</option>
+              <option value="Warning" selected>🟠 Warning</option>
+              <option value="Watch">🟡 Watch</option>
+              <option value="Advisory">🔵 Advisory</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Alert Headline / Title *</label>
+          <input type="text" name="title" required placeholder="e.g. Critical Cloud-to-Ground Lightning Strikes Detected" class="w-full border border-slate-300 rounded-lg p-2 outline-none">
+        </div>
+
+        <div class="grid grid-cols-3 gap-3">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">District *</label>
+            <select name="district" id="alert-district-select" required class="w-full border border-slate-300 rounded-lg p-2 outline-none">
+              <optgroup label="West Bengal">
+                <option value="Paschim Medinipur">Paschim Medinipur (Ghatal)</option>
+                <option value="Bankura">Bankura</option>
+                <option value="Murshidabad">Murshidabad</option>
+                <option value="Malda">Malda</option>
+                <option value="South 24 Parganas">South 24 Parganas (Sundarbans)</option>
+                <option value="Purba Bardhaman">Purba Bardhaman</option>
+                <option value="Nadia">Nadia</option>
+                <option value="Hooghly">Hooghly</option>
+                <option value="Jalpaiguri">Jalpaiguri</option>
+              </optgroup>
+              <optgroup label="UP & Bihar">
+                <option value="Varanasi">Varanasi</option>
+                <option value="Gorakhpur">Gorakhpur</option>
+                <option value="Prayagraj">Prayagraj</option>
+                <option value="Ayodhya">Ayodhya</option>
+                <option value="Patna">Patna</option>
+              </optgroup>
+            </select>
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Epicenter Lat *</label>
+            <input type="number" step="any" name="epicenter_lat" value="25.4215" required class="w-full border border-slate-300 rounded-lg p-2 outline-none">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Epicenter Lon *</label>
+            <input type="number" step="any" name="epicenter_lon" value="82.8423" required class="w-full border border-slate-300 rounded-lg p-2 outline-none">
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Danger Radius (Kilometers) *</label>
+          <input type="number" step="1" name="radius_km" value="15" required class="w-full border border-slate-300 rounded-lg p-2 outline-none">
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Safety Instructions (English) *</label>
+          <textarea name="instruction_text" rows="2" required class="w-full border border-slate-300 rounded-lg p-2 outline-none" placeholder="Move indoors immediately. Do not stand under trees or open sheds."></textarea>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">सुरक्षा निर्देश (हिन्दी अनुवाद)</label>
+          <textarea name="instruction_text_hindi" rows="2" class="w-full border border-slate-300 rounded-lg p-2 outline-none" placeholder="तुरंत खुले खेतों से बाहर निकलें और पक्के मकान में सुरक्षित जाएं।"></textarea>
+        </div>
+
+        <div class="flex justify-end gap-2 pt-3 border-t border-slate-200">
+          <button type="button" onclick="closeModal('modal-create-alert')" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg font-semibold text-slate-700">Cancel</button>
+          <button type="submit" class="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold shadow-md">Broadcast Now</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal 3: Submit SOS Distress -->
+  <div id="modal-submit-sos" class="fixed inset-0 modal-backdrop z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-200 mb-4">
+        <h3 class="text-lg font-bold text-red-900 flex items-center gap-2">
+          <span>🆘</span> Report Emergency SOS Distress
+        </h3>
+        <button onclick="closeModal('modal-submit-sos')" class="text-slate-400 hover:text-slate-600 text-2xl font-bold">&times;</button>
+      </div>
+
+      <form id="form-submit-sos" class="space-y-3.5 text-xs">
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Select Farmer in Distress *</label>
+          <select name="farmer_id" id="sos-farmer-select" required class="w-full border border-slate-300 rounded-lg p-2 outline-none">
+            <!-- Dynamically populated -->
+          </select>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Emergency Nature *</label>
+          <select name="distress_type" required class="w-full border border-slate-300 rounded-lg p-2 outline-none">
+            <option value="Trapped_In_Field">Trapped in Open Agricultural Field</option>
+            <option value="Lightning_Victim">Lightning Strike Nearby / Field Casualties</option>
+            <option value="Livestock_Threatened">Livestock Inundation / Evacuation Needed</option>
+            <option value="Shelter_Required">Dwelling Submerged - Shelter Required</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Emergency Notes & Landmarks *</label>
+          <textarea name="emergency_notes" rows="3" required placeholder="Describe location details, water depth, number of persons stranded..." class="w-full border border-slate-300 rounded-lg p-2 outline-none"></textarea>
+        </div>
+
+        <div class="flex justify-end gap-2 pt-3 border-t border-slate-200">
+          <button type="button" onclick="closeModal('modal-submit-sos')" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg font-semibold text-slate-700">Cancel</button>
+          <button type="submit" class="px-5 py-2 bg-red-700 hover:bg-red-800 text-white rounded-lg font-bold shadow-md">Dispatch Quick Response</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="bg-slate-900 text-slate-400 text-xs py-4 border-t border-slate-800 mt-auto">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <strong>AgriSuraksha Prototype</strong> • Full Stack Lightning & Flood Alert Registry for Farmers
+      </div>
+      <div class="flex items-center gap-4">
+        <span>Backend: <strong>Python Flask REST API</strong></span>
+        <span>Database: <strong>MySQL 8.0 Server</strong></span>
+        <span>GeoSpatial: <strong>Leaflet.js</strong></span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- App Scripts -->
+  <script src="/static/js/sound.js"></script>
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
