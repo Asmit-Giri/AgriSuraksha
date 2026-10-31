@@ -1,0 +1,22 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Flask App (Port 5000)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/app.py",
+            "python": "C:\\Users\\asmit\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+            "args": [],
+            "env": {
+                "FLASK_ENV": "development",
+                "FLASK_DEBUG": "1",
+                "MYSQL_PORT": "3307",
+                "PYTHONIOENCODING": "utf-8"
+            },
+            "jinja": true,
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}

@@ -1,0 +1,52 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Launch Full Project (MySQL + Flask + Browser)",
+            "type": "shell",
+            "command": "cmd.exe",
+            "args": ["/c", "${workspaceFolder}\\run_project.bat"],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "focus": true
+            }
+        },
+        {
+            "label": "Start MySQL Server",
+            "type": "shell",
+            "command": "cmd.exe",
+            "args": ["/c", "${workspaceFolder}\\start_mysql.bat"],
+            "isBackground": true,
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            }
+        },
+        {
+            "label": "Run Flask Web App",
+            "type": "shell",
+            "command": "C:\\Users\\asmit\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+            "args": ["app.py"],
+            "options": {
+                "cwd": "${workspaceFolder}",
+                "env": {
+                    "PYTHONIOENCODING": "utf-8",
+                    "MYSQL_PORT": "3307"
+                }
+            },
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "focus": true
+            }
+        }
+    ]
+}
