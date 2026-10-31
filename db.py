@@ -1,12 +1,25 @@
 import math
 import os
 import re
+import tempfile
 import sqlite3
 import pymysql
 import pymysql.cursors
 from config import Config
 
 _is_sqlite_active = False
+
+def is_sqlite_mode():
+    """
+    Check if we should run in serverless SQLite mode.
+    Enabled automatically on Vercel/serverless environments unless an external cloud MySQL is configured.
+    """
+    is_vercel = bool(os.environ.get('VERCEL') or os.environ.get('AWS_LAMBDA_FUNCTION_NAME'))
+    is_localhost = Config.MYSQL_HOST in ('127.0.0.1', 'localhost', '')
+    return is_vercel and is_localhost
+
+def get_sqlite_path():
+    return os.path.join(tempfile.gettempdir(), 'farmer_alert_serverless.db')
 
 class SQLiteCursorAdapter:
     def __init__(self, cursor):
@@ -53,7 +66,7 @@ class SQLiteConnAdapter:
 def get_sqlite_connection():
     global _is_sqlite_active
     _is_sqlite_active = True
-    db_path = '/tmp/farmer_alert.db' if os.environ.get('VERCEL') else os.path.join(os.path.dirname(__file__), 'farmer_alert_local.db')
+    db_path = get_sqlite_path()
     conn = sqlite3.connect(db_path, autocommit=True)
     conn.row_factory = sqlite3.Row
     return SQLiteConnAdapter(conn)
@@ -176,33 +189,31 @@ def get_db_connection(use_database=True):
     Tries configured port first; if failed, attempts alternative standard ports (3306, 3307).
     Falls back gracefully to SQLite if running in serverless environments (e.g. Vercel).
     """
-    is_vercel = bool(os.environ.get('VERCEL'))
-    is_localhost = Config.MYSQL_HOST in ('127.0.0.1', 'localhost')
+    if is_sqlite_mode():
+        return get_sqlite_connection()
 
-    # Try MySQL first unless on Vercel with default localhost (no cloud DB configured)
-    if not (is_vercel and is_localhost):
-        candidate_ports = [Config.MYSQL_PORT]
-        if 3307 not in candidate_ports:
-            candidate_ports.append(3307)
-        if 3306 not in candidate_ports:
-            candidate_ports.append(3306)
+    candidate_ports = [Config.MYSQL_PORT]
+    if 3307 not in candidate_ports:
+        candidate_ports.append(3307)
+    if 3306 not in candidate_ports:
+        candidate_ports.append(3306)
 
-        for port in candidate_ports:
-            try:
-                conn = pymysql.connect(
-                    host=Config.MYSQL_HOST,
-                    port=port,
-                    user=Config.MYSQL_USER,
-                    password=Config.MYSQL_PASSWORD,
-                    database=Config.MYSQL_DB if use_database else None,
-                    charset='utf8mb4',
-                    cursorclass=pymysql.cursors.DictCursor,
-                    autocommit=True,
-                    connect_timeout=3
-                )
-                return conn
-            except Exception:
-                continue
+    for port in candidate_ports:
+        try:
+            conn = pymysql.connect(
+                host=Config.MYSQL_HOST,
+                port=port,
+                user=Config.MYSQL_USER,
+                password=Config.MYSQL_PASSWORD,
+                database=Config.MYSQL_DB if use_database else None,
+                charset='utf8mb4',
+                cursorclass=pymysql.cursors.DictCursor,
+                autocommit=True,
+                connect_timeout=3
+            )
+            return conn
+        except Exception:
+            continue
 
     # Fallback to serverless SQLite database
     return get_sqlite_connection()
@@ -313,14 +324,14 @@ def init_db():
     Initializes database schema and seed data if not already present.
     Supports both MySQL (local/cloud) and SQLite (Vercel serverless fallback).
     """
-    if _is_sqlite_active:
+    if is_sqlite_mode() or _is_sqlite_active:
         conn = get_sqlite_connection()
         init_sqlite_tables(conn)
         cursor = conn.cursor()
         try:
             cursor.execute("SELECT COUNT(*) AS total FROM farmers")
             result = cursor.fetchone()
-            if result['total'] == 0:
+            if not result or result['total'] == 0:
                 print("[Database] Seeding initial data into SQLite...")
                 seed_sqlite_data(conn)
             print("[Database] SQLite serverless database ready.")
